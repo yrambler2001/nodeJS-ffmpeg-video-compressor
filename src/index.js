@@ -21,6 +21,8 @@ const bitrate = '5500k';
 const maxBitrate = '10000k';
 const codec = 'h264';
 const preset = 'veryslow';
+const downScaleLong = 1920;
+const downScaleShort = 1080;
 
 const row = new Array(30).fill('-').join('');
 
@@ -40,13 +42,15 @@ const getResizeParams = async (file) => {
   const height = rotate ? rawWidth : rawHeight;
   const isLandscape = width > height;
   if (isLandscape) {
-    if (width > 1920) return ['-s', '1920x1080'];
-  } else if (height > 1920) return ['-s', '1080x1920'];
+    if (width > downScaleLong) return ['-s', `${downScaleLong}x${downScaleShort}`];
+  } else if (height > downScaleLong) return ['-s', `${downScaleShort}x${downScaleLong}`];
   return [];
 };
 const getFileWeight = async (file) => {
   const { width, height, nb_frames: countFrames } = (await memoizedFFProbe(file)).streams.find((stream) => stream.codec_type === 'video');
-  const weight = ((Math.min(width, 1920) * Math.min(height, 1920)) / 1000) * countFrames;
+  const long = Math.max(width, height);
+  const short = Math.min(width, height);
+  const weight = ((Math.min(long, downScaleLong) * Math.min(short, downScaleShort)) / 1000) * countFrames;
   return weight;
 };
 const findFiles = (dir, pattern) => new Promise((resolve, reject) => glob(pattern, { cwd: dir }, (error, files) => { if (error) reject(error); else resolve(files); }));
