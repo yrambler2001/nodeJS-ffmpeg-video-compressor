@@ -20,6 +20,8 @@ const preset = 'veryslow';
 const downScaleLong = 1920;
 const downScaleShort = 1080;
 
+const audioBitrate = '256k';
+
 const secondsBetweenTwoDates = (d1, d2 = new Date()) => Math.abs((d1.getTime() - d2.getTime()) / 1000);
 const numberTo2Digits = (n) => (n < 10 ? `0${n}` : n);
 
@@ -93,6 +95,7 @@ const App = async () => {
           '-i', file.path, // input file
           '-c:v', codec, // codec to encode file
           '-b:v', bitrate, // result bitrate in sec
+          '-b:a', audioBitrate,
           '-maxrate:v', maxBitrate, // max bitrate
           ...await getResizeParams(file.path), // if video is larger FullHD, scale down to FullHD
           '-preset', preset, // encoding quality preset
