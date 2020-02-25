@@ -10,10 +10,6 @@ const glob = require('glob');
 const path = require('path');
 const ffmpeg = require('ffmpeg-static');
 const { spawn } = require('child_process');
-const moment = require('moment');
-const momentDurationFormatSetup = require('moment-duration-format');
-
-momentDurationFormatSetup(moment);
 
 const folderToProcess = 'DONE';
 const folderToSave = 'DONE_ENCODED';
@@ -23,6 +19,20 @@ const codec = 'h264';
 const preset = 'veryslow';
 const downScaleLong = 1920;
 const downScaleShort = 1080;
+
+const secondsBetweenTwoDates = (d1, d2 = new Date()) => Math.abs((d1.getTime() - d2.getTime()) / 1000);
+const numberTo2Digits = (n) => (n < 10 ? `0${n}` : n);
+
+const secondsRangeToString = (secondsRange) => {
+  let currentRange = Math.floor(secondsRange);
+  const hours = Math.floor(currentRange / 3600);
+  currentRange -= hours * 3600;
+  const minutes = Math.floor(currentRange / 60);
+  currentRange -= minutes * 60;
+  const seconds = Math.floor(currentRange);
+  return `${numberTo2Digits(hours)} hours, ${numberTo2Digits(minutes)} minutes, ${numberTo2Digits(seconds)} seconds`;
+};
+const getHHMMSSfromDate = (d = new Date()) => d.toTimeString().split(' ')[0];
 
 const row = new Array(30).fill('-').join('');
 
@@ -61,17 +71,20 @@ const App = async () => {
   let filesToProcess = [];
   const errorFiles = [];
 
+  const initDate = new Date();
+  let firstEstimate; let secondEstimate;
   await Promise.all(filesToProcessPromises);
   for await (const file of filesToProcessPromises) { if (file.weight) filesToProcess.push(file); else errorFiles.push(file); }
   filesToProcess = filesToProcess.sort((a, b) => a.weight - b.weight);// for better time statistics sort files by size and encode first small files
   const totalWeight = filesToProcess.reduce((prev, curr) => prev + curr.weight, 0);
-  if (errorFiles.length) console.log('error files:', errorFiles);
   console.log(`total weight: ${totalWeight}`);
-  const start = moment();
+  let completedSeconds = 0;
   let completedWeight = 0;
+  let startDate;
   for (const file of filesToProcess) {
     const outputFilePath = file.path.replace(folderToProcess, folderToSave);
     fs.mkdirSync(path.dirname(outputFilePath), { recursive: true });
+    startDate = new Date();
     await new Promise(async (resolve) => {
       const process = spawn(
         ffmpeg,
@@ -88,14 +101,23 @@ const App = async () => {
         { stdio: 'inherit', stderr: 'inherit' }, // pipe all stdio to node process
       );
       process.on('close', () => resolve());
+      // (new Promise((r) => setTimeout(r, file.weight / 10000))).then(() => resolve());
     });
-    completedWeight += filesToProcess[0].weight;
-    const currentEndMoment = moment();
-    const currentDurationInSecs = currentEndMoment.diff(start, 'seconds', true);
-    const perSec = (completedWeight / currentDurationInSecs);
+    completedWeight += file.weight;
+    completedSeconds += secondsBetweenTwoDates(startDate);
+    const perSec = (completedWeight / completedSeconds);
+    const estimateSeconds = (totalWeight - completedWeight) / perSec;
+    const timeLeft = secondsRangeToString(estimateSeconds);
+    if (!firstEstimate) firstEstimate = secondsRangeToString(estimateSeconds + completedSeconds);
+    else if (!secondEstimate) secondEstimate = secondsRangeToString(estimateSeconds + completedSeconds);
+    const percentComplete = ((completedWeight / totalWeight) * 100).toFixed(1);
     console.log(row);
-    console.log(`${perSec} abstract units per sec. ${moment.duration((totalWeight - completedWeight) / perSec, 'seconds').format('h [hrs], m [min]')} left. ${((completedWeight / totalWeight) * 100).toFixed(1)}% complete`);
+    console.log(`${getHHMMSSfromDate()} ${Math.floor(perSec)} abstract units per sec. ${timeLeft} left. ${percentComplete}% complete`);
     console.log(row);
   }
+  console.log(`${getHHMMSSfromDate()} Encoded in ${secondsRangeToString(secondsBetweenTwoDates(initDate))}`);
+  console.log(`${getHHMMSSfromDate()} First estimate: ${firstEstimate}`);
+  console.log(`${getHHMMSSfromDate()} Second estimate: ${secondEstimate}`);
+  if (errorFiles.length) console.log('Error files:', errorFiles);
 };
 App();
