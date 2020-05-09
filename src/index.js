@@ -11,8 +11,8 @@ const path = require('path');
 const ffmpeg = require('ffmpeg-static');
 const { spawn } = require('child_process');
 
-const folderToProcess = 'DONE';
-const folderToSave = 'DONE_ENCODED';
+const dirWithNotEncodedFiles = '/Volumes/SSD/PA/DONE';
+const dirToSaveEncodedFiles = '/Users/yrambler2001/Documents/encoded';
 const bitrate = '5500k';
 const maxBitrate = '10000k';
 const codec = 'h264';
@@ -45,7 +45,6 @@ const memoizedFFProbe = async (file) => {
 };
 
 // ffmpeg -i VID_20200122_213850.mp4 -c:v h264 -b:v 5500k -maxrate:v 10000k -s 1080x1920 -preset veryslow t7.mp4
-const doneDirPath = path.join(process.cwd(), '..', folderToProcess);
 const getResizeParams = async (file) => {
   const a = (await memoizedFFProbe(file)).streams.find((stream) => stream.codec_type === 'video');
   const { width: rawWidth, height: rawHeight } = a;
@@ -69,7 +68,7 @@ const findFiles = (dir, pattern) => new Promise((resolve, reject) => glob(patter
 
 const App = async () => {
   const filesToProcessPromises = (
-    await findFiles(doneDirPath, '**\\*.mp4')).map((filePath) => path.join(doneDirPath, filePath)).map(async (fullPath) => ({ weight: await getFileWeight(fullPath).catch(() => { }), path: fullPath }));
+    await findFiles(dirWithNotEncodedFiles, path.join('**', '*.mp4'))).map((filePath) => path.join(dirWithNotEncodedFiles, filePath)).map(async (fullPath) => ({ weight: await getFileWeight(fullPath).catch(() => { }), path: fullPath }));
   let filesToProcess = [];
   const errorFiles = [];
 
@@ -84,7 +83,7 @@ const App = async () => {
   let completedWeight = 0;
   let startDate;
   for (const file of filesToProcess) {
-    const outputFilePath = file.path.replace(folderToProcess, folderToSave);
+    const outputFilePath = file.path.replace(dirWithNotEncodedFiles, dirToSaveEncodedFiles);
     fs.mkdirSync(path.dirname(outputFilePath), { recursive: true });
     startDate = new Date();
     await new Promise(async (resolve) => {
